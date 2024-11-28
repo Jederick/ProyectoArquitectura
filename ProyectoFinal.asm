@@ -4,10 +4,15 @@
 # Display Width = 512
 # Display Height = 512
 
-
 .data
 
-display: .space 0x10010000 # Dirección base del display
+coordenadaX: .word 32		# Posición en pantalla/memoria donde estará el pixel en x
+coordenadaY: .word 32		# Posición en pantalla/memoria donde estará el pixel en y
+
+posicionActual: .word 0		# Contiene la posición actual en memoria/pantalla del píxel
+
+anchoPantalla: .word 64		# Ancho de pantalla utilizable
+altoPantalla:  .word 64		# Largo de pantalla utilizable
 
 .text
 
@@ -17,9 +22,13 @@ main:
 	li $t1, 0x000000   # Color negro
 	
 	# Variables de coordenadas y resolución
-	li $t2, 32		   # Posicion en x
-	li $t3, 32		   # Posición en y
-	li $t4, 64		   # Ancho de pantalla
+	#li $t2, 32		   # Posicion en x
+	#li $t3, 32		   # Posición en y
+	#li $t4, 64		   # Ancho de pantalla
+	
+	# Se almacena las coordenadas en "x" y "y" en memoria
+	#lw $t2, coordenadaX     
+	#lw $t3, coordenadaY 
 	
 	# Teclado
 	li $t5, 0xFFFF0000 # Estado del teclado (1 si hay entrada)
@@ -30,21 +39,32 @@ main:
 	jal esperandoEntrada
 	
 
-#Recibe: $t2 = x, $t3 = y, $t4 = Ancho de pantalla
-#Devuelve: $t7 = posición en memoria(pantalla) correspondiente a las coordenadas
+#Utiliza: Posición del píxel "x" y "y" guardados en memoria, y resolución de pantalla.
+#Devuelve: Posición actual del píxel en memoria/pantalla (.word posicionActual)
 calculoCoordenadas:
+
+	# Preparación de variables
+	lw $t2, coordenadaX
+	lw $t3, coordenadaY
+	lw $t4, anchoPantalla
+
+	
 	# Cálculo de coordenadas para imprimir píxel
 	mul $t7, $t3, $t4  # $t7 = Y * Ancho de pantalla
 	add $t7, $t7, $t2  # $t7 = Y * Ancho de pantalla + X
 	mul $t7, $t7, 4	   # Se multiplica por 4 (Tamaño de píxeles en bytes)
 
-	la $t8, display    # $t8 = dirección base de la pantalla
-	add $t7, $t7, $t8  # $t7 = Coordenadas a imprimir el pixel
+	la $t8, 0x10010000  # $t8 = dirección base de la pantalla
+	add $t7, $t7, $t8	# $t7 = Coordenadas a imprimir el pixel
+	
+	sw $t7, posicionActual # Guarda la posición actual en memoria/pantalla del pixel
 	jr $ra
 	
-#Imprime un píxel del color $t0 en la posición de memoria $t7	
+	
+# Imprime un píxel del color $t0 en la posición de memoria guardada en 'posicionActual'
 imprimirPixel:
-	sw $t0, 0($t7)
+	lw $t2, posicionActual
+	sw $t0, 0($t2)
 	jr $ra
 		
 esperandoEntrada:
@@ -68,9 +88,12 @@ leerEntrada:
 
 
 moverIzquierda:
-	sw $t1, 0($t7)
-	
-	subi $t2, $t2, 1 # Resta 1 en la coordenada X del pixel
+	lw $t2, posicionActual
+	sw $t1, 0($t2)		#Borra el pixel actual	
+
+	lw $t2, coordenadaX # Guarda la coordenada 'x' del píxel en $t2
+	subi $t2, $t2, 1	# Resta 1 en la coordenada 'x' del pixel
+	sw $t2, coordenadaX # Guarda el nuevo valor de la coordenada 'x' en memoria
 	
 	beqz $t2, exit # Si el pixel llega al final de la pantalla, se termina el programa
 	
@@ -79,33 +102,43 @@ moverIzquierda:
 	j esperandoEntrada
 
 moverDerecha:
-	sw $t1, 0($t7) # Borra el píxel actual
+	lw $t2, posicionActual	
+	sw $t1, 0($t2) 			# Borra el píxel actual	
 	
-	addi $t2, $t2, 1 # Agrega 1 en la coordenada X del pixel
-	
-	bge $t2, 64, exit # Si el pixel llega al final de la pantalla, se termina el programa
+	lw $t2, coordenadaX		# Guarda la coordenada 'x' del píxel en $t2
+	addi $t2, $t2, 1   		# Agrega 1 en la coordenada X del pixel
+	sw $t2, coordenadaX		# Guarda el nuevo valor de la coordenada 'x' en memoria
+		
+	bge $t2, 64, exit		# Si el pixel llega al final de la pantalla, se termina el programa
 	
 	jal calculoCoordenadas
 	jal imprimirPixel
 	j esperandoEntrada
 	
 moverArriba:
-	sw $t1, 0($t7) # Borra el píxel actual
+	lw $t2, posicionActual
+	sw $t1, 0($t2)			 # Borra el píxel actual
 	
-	subi $t3, $t3, 1 # Resta 1 en la coordenada Y del pixel
+	lw $t2, coordenadaY		 # Guarda la coordenada 'y' del píxel en $t2
+	subi $t2, $t2, 1		 # Resta 1 en la coordenada Y del pixel
+	sw $t2, coordenadaY		 # Guarda el nuevo valor de la coordenada 'y' en memoria
 	
-	beqz $t2, exit # Si el pixel llega al final de la pantalla, se termina el programa
+	beqz $t2, exit			 # Si el pixel llega al final de la pantalla, se termina el programa
 	
 	jal calculoCoordenadas
 	jal imprimirPixel
 	j esperandoEntrada
 	
 moverAbajo:
-	sw $t1, 0($t7) # Borra el píxel actual
+	lw $t2, posicionActual
+	sw $t1, 0($t2) 			 # Borra el píxel actual
+
 	
-	addi $t3, $t3, 1 # Agrega 1 en la coordenada Y del pixel
+	lw $t2, coordenadaY		 # Guarda la coordenada 'y' del píxel en $t2	
+	addi $t2, $t2, 1		 # Agrega 1 en la coordenada Y del pixel
+	sw $t2, coordenadaY		 # Guarda el nuevo valor de la coordenada 'y' en memoria
 	
-	beq $t2, 64, exit # Si el pixel llega al final de la pantalla, se termina el programa
+	beq $t2, 64, exit		 # Si el pixel llega al final de la pantalla, se termina el programa
 	
 	jal calculoCoordenadas
 	jal imprimirPixel
