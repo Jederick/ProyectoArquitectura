@@ -6,67 +6,77 @@
 
 .data
 
-serpiente: .space 28		# Tamaño máximo que tendrá la serpiente (28/4 = 7 píxeles de largo)
+serpienteX:		   		.space 28		# Tamaño máximo que tendrá la serpiente, contiene la ubicacion en X de cada píxel de la serpiente (28/4 = 7 píxeles de longitud)
+serpienteY:				.space 28		# Tamaño máximo que tendrá la serpiente, contiene la ubicación en Y de cada pixel de la serpiente (28/4 = 7 píxeles de longitud)
 
-coordenadaX: .word 16		# Posición en pantalla/memoria donde estará el pixel en x
-coordenadaY: .word 16		# Posición en pantalla/memoria donde estará el pixel en y
-posicionActual: .word 0		# Contiene la posición actual en memoria/pantalla del píxel
+longitudSerpiente: 		.word 3			# Longitud inicial en bytes que tendrá la serpiente
 
-anchoPantalla: .word 32		# Ancho de pantalla utilizable
-altoPantalla:  .word 32		# Largo de pantalla utilizable
-cicloJuegoIniciado: .word 0 # Contiene un 0 hasta que el usuario presione una tecla
+coordenadaX:			.word 16		# Posición en pantalla/memoria donde estará el pixel en x
+coordenadaY:			.word 16		# Posición en pantalla/memoria donde estará el pixel en y
+posicionActual:			.word 0			# Contiene la posición actual en memoria/pantalla del píxel
+
+anchoPantalla:			.word 32		# Ancho de pantalla utilizable
+cicloJuegoIniciado:		.word 0 		# Contiene un 0 hasta que el usuario presione una tecla
 	
-direccionActual: .word 0	# Contiene la dirección de la función de movimiendo a la que se dirige el píxel (arriba/abajo/izquierda/derecha)
-colorSerpiente: .word 0x76F5BB	# Color de la serpiente
-colorNegro: .word 0x000000 		# Color negro
+cabezaDireccionActual: 	.word 0			# Contiene la dirección de la función de movimiendo a la que se dirige el píxel (arriba/abajo/izquierda/derecha)
+colorSerpiente:			.word 0x76F5BB	# Color de la serpiente
+colorNegro:				.word 0x000000 	# Color negro
 
 .text
 
 main:
-	# Colores
-#	li $t1, 0x000000   # Color negro 
-#	jal inicializarSerpiente
-	jal calculoCoordenadas		# Se calcula en que parte de la pantalla estará el pixel inicial
+
+
+	jal inicializarSerpiente
+	jal imprimirSerpiente
+	jal movimientoInicial
+	j exit
 	
-	jal imprimirPixel			# Se imprime el pixel
-	
-	j movimientoInicial		# Se le da un movimiento inicial al pixel  **Esta función también inicia el ciclo de juego prinicipal**		
-
-
-# Ciclo donde el juego se estará ejecutando hasta que se acabe el programa
-
 inicializarSerpiente:
+    # Cargar posición inicial de la cabeza
+    lw $t0, coordenadaX				# Posicion inicial en 'x'de la cabeza de la serpiente
+    lw $t1,	coordenadaY				# Posicion inicial en 'y' de la cabeza de la serpiente
+    
+    lw $t2, longitudSerpiente		# Longitud actual de la serpiente en píxeles (3)
+    li $t3, 0						# Indice para el ciclo
+    
+	cicloInicializarSerpiente:
+		sw $t0, serpienteX($t3) # Se carga en memoria la posición de 'x'
+		sw $t1, serpienteY($t3)	# Se carga en memoria la posicion de 'y'
 	
-	
-
-	jr $ra
-
-movimientoInicial:
-	li $a0, 100
-	li $v0, 32
-	syscall 	
- 	
- 	li $t2, 0xFFFF0000			# $t2 = Dirección del estado del teclado (1 si hay entrada)
-	lw $t3, 0($t2)				# $t3 = Contenido de la dirección
-	
-	sw $t3, cicloJuegoIniciado
-	
-	beq $t3, 1, leerEntrada
-	
-	j moverDerecha
-
-cicloJuego:
-	li $a0, 100
-	li $v0, 32
-	syscall
-	
-	jal esperandoEntrada
+		subi $t0, $t0, 1		# Se resta 1 a la posición en 'x'
+		addi $t3, $t3, 4		# Se avanza al siguiente pixel de la serpiente
+		subi $t2, $t2, 1		# Se resta 1 a los píxeles restantes
+		
 			
-	lw $t2, direccionActual
-	jr $t2
+		bnez $t2, cicloInicializarSerpiente
+	    jr $ra                        # Retornar
 	
-	j cicloJuego
+imprimirSerpiente:
+	li $s2, 0					# Indice para el ciclo
+	lw $s3, longitudSerpiente	# $t1 = longutid máxima de serpiente
+	move $s7, $ra
 	
+	cicloImprimirSerpiente:
+		
+	
+		lw $s0, serpienteX($s2)	# $s0 = posición en 'x' del pixel actual de la serpiente
+		lw $s1, serpienteY($s2) # $s1 = posicion en 'y' del pixel actual de la serpiente
+		
+		sw $s0, coordenadaX		# Actualiza en memoria la coordenadaX
+		sw $s1, coordenadaY		# Actualiza en memoria la coordenadaY
+		
+		jal calculoCoordenadas	# Posicion en memoria/pantalla correspondientes al x/y anteriores en 'posicionActual'
+		jal imprimirPixel		# Imprime un píxel en la posicion de pantalla guardada en $s0
+		
+		addi $s2, $s2, 4		# Avanza al siguiente píxel a imprimir
+		subi $s3, $s3, 1		# Resta 1 a la cantidad de píxeles a imprimir
+		
+		bnez $s3, cicloImprimirSerpiente	# Si la cantidad de píxeles a imprimir no es 0, seguir en bucle
+		jr $s7
+		
+movimientoInicial:
+
 	
 #Utiliza: Posición del píxel 'x' y 'y' guardados en memoria, y resolución de pantalla.
 #Devuelve: Posición actual del píxel en memoria/pantalla (.word posicionActual)
@@ -83,7 +93,7 @@ calculoCoordenadas:
 	add $t7, $t7, $t2  # $t7 = Y * Ancho de pantalla + X
 	mul $t7, $t7, 4	   # Se multiplica por 4 (Tamaño de píxeles en bytes)
 
-	la $t8, 0x10010000  # $t8 = dirección base de la pantalla
+	la $t8, 0x10008000  # $t8 = dirección base de la pantalla
 	add $t7, $t7, $t8	# $t7 = Coordenadas a imprimir el pixel
 	
 	sw $t7, posicionActual # Guarda la posición actual en memoria/pantalla del pixel
@@ -98,135 +108,7 @@ imprimirPixel:
 	sw $t0, 0($t2)
 	jr $ra
 		
-esperandoEntrada:
-	li $t2, 0xFFFF0000		# $t2 = Dirección del estado del teclado (1 si hay entrada)
-	lw $t3, 0($t2)			# $t3 = Contenido de la dirección
-	
-	beq $t3, 1, leerEntrada	# $t3 = 0, seguir esperando entrada
-	jr $ra
-	
-leerEntrada:	
-	
-	li $t2, 0xFFFF0004 # t2 = Posición en memoria del carácter ingrasado
-	lw $t3, 0($t2) # t3 = Carácter ingresado.
-	
-	beq $t3, 'd', direccionDerecha	     # Si la tecla ingresada es "d", ir a moverDerecha
-	beq $t3, 'D', direccionDerecha	     # Si la tecla ingresada es "D", ir a moverDerecha
-	
-	beq $t3, 'a', direccionIzquierda	 # Si la tecla ingresada es "a", ir a moverIzquierda
-	beq $t3, 'A', direccionIzquierda	 # Si la tecla ingresada es "A", ir a moverIzquierda
-	
-	beq $t3, 'w', direccionArriba	 # Si la tecla ingresada es "w", ir a moverArriba
-	beq $t3, 'W', direccionArriba	 # Si la tecla ingresada es "W", ir a moverArriba
-	
-	beq $t3, 's', direccionAbajo	 # Si la tecla ingresada es "w", ir a moverAbajo
-	beq $t3, 'S', direccionAbajo	 # Si la tecla ingresada es "W", ir a moverAbajo
-	j cicloJuego
 
-direccionIzquierda:
-	la $t2, moverIzquierda
-	sw $t2, direccionActual
-	j cicloJuego
-
-direccionDerecha:
-	la $t2, moverDerecha
-	sw $t2, direccionActual
-	j cicloJuego
-	
-direccionArriba:
-	la $t2, moverArriba
-	sw $t2, direccionActual
-	j cicloJuego
-		
-direccionAbajo:
-	la $t2, moverAbajo
-	sw $t2, direccionActual
-	j cicloJuego
-
-moverIzquierda:
-	lw $t1, colorNegro
-	lw $t2, posicionActual
-	
-	sw $t1, 0($t2)		#Borra el pixel actual	
-
-	lw $t2, coordenadaX # Guarda la coordenada 'x' del píxel en $t2
-	subi $t2, $t2, 1	# Resta 1 en la coordenada 'x' del pixel
-	sw $t2, coordenadaX # Guarda el nuevo valor de la coordenada 'x' en memoria
-	
-	beqz $t2, exit # Si el pixel llega al final de la pantalla, se termina el programa
-	
-	jal calculoCoordenadas
-	jal imprimirPixel
-	j cicloJuego
-
-
-# Utiliza: Las coordenadas 'x' y 'y' y resolucion almacenado en memoria,
-moverDerecha:
-	lw $t1, colorNegro
-	lw $t2, posicionActual	# $t2 = posicion actual del pixel
-	
-	sw $t1, 0($t2)			# Se elimina el pixel en la posicion actual
-	
-	lw $t3, coordenadaX		# $t3 = Posicion actual del píxel en el eje 'x'
-	addi $t3, $t3, 1		# Se le suma 1 al eje 'x' para mover el pixel a la derecha
-	sw $t3, coordenadaX		# Se guarda la nueva posicion del pixen en el eje 'x' en memoria
-	
-	beq $t3, 63, reiniciarX
-	
-	jal calculoCoordenadas	# Se actualiza la posicion actual del pixel en pantalla
-	jal imprimirPixel		# Se imprime el pixel
-	
-	lw $t4, cicloJuegoIniciado		# $t4 = 1 cuando el juego ya inició
-	beq $t4, 1, cicloJuego		# si $t4 = 0, saltar a movimiento inicial
-	j movimientoInicial
-	
-# Recibe: $t5 = 0, la función salta a movimiento inicial, si no, salta a cicloJuego	
-moverArriba:
-	lw $t1, colorNegro
-	lw $t2, posicionActual
-	
-	sw $t1, 0($t2)			 # Borra el píxel actual
-	
-	lw $t2, coordenadaY		 # Guarda la coordenada 'y' del píxel en $t2
-	subi $t2, $t2, 1		 # Resta 1 en la coordenada Y del pixel
-	sw $t2, coordenadaY		 # Guarda el nuevo valor de la coordenada 'y' en memoria
-	
-	beqz $t2, exit			 # Si el pixel llega al final de la pantalla, se termina el programa
-	
-	jal calculoCoordenadas
-	jal imprimirPixel
-	
-	lw $t4, cicloJuegoIniciado		# $t4 = 1 cuando el juego ya inició
-	beqz $t4, movimientoInicial		# si $t4 = 0, saltar a movimiento inicial
-	
-	j cicloJuego
-	
-moverAbajo:
-	lw $t1, colorNegro
-	lw $t2, posicionActual
-	
-	sw $t1, 0($t2) 			 # Borra el píxel actual
-
-	
-	lw $t2, coordenadaY		 # Guarda la coordenada 'y' del píxel en $t2	
-	addi $t2, $t2, 1		 # Agrega 1 en la coordenada Y del pixel
-	sw $t2, coordenadaY		 # Guarda el nuevo valor de la coordenada 'y' en memoria
-	
-	beq $t2, 64, exit		 # Si el pixel llega al final de la pantalla, se termina el programa
-	
-	jal calculoCoordenadas
-	jal imprimirPixel
-	
-	j cicloJuego
-	
-reiniciarX:
-	li $t2, 0
-	sw $t2, coordenadaX
-	
-	lw $t3, cicloJuegoIniciado
-	beqz $t3, movimientoInicial
-		
-	j cicloJuego
 
 exit:
 	li $v0, 10
